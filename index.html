@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lower-Limb Risk Lab — AI4ALL Group 3D</title>
+<meta name="description" content="Predicting lower-extremity injury risk on individual NFL plays from player movement and playing-surface data. AI4ALL Ignite, Group 3D.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
+<style>
+/* ---------------------------------------------------------------
+   Tokens
+   Brand gradient inherited from the site theme: #876baf → #26bdc4.
+   Data-viz colors are the validated diverging pair (blue ↔ red),
+   checked against a white surface: CVD ΔE 21.6, normal ΔE 32.3.
+   --------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --brand-violet:      #876baf;
+  --brand-teal:        #26bdc4;
+  --brand-violet-ink:  #5b4189;
+  --brand-teal-ink:    #0e6f75;
+
+  --plane:        #f7f6fa;
+  --surface:      #ffffff;
+  --surface-alt:  #fbfaff;
+
+  --ink:          #16151a;
+  --ink-2:        #4c4a55;
+  --ink-muted:    #7a7885;
+
+  --hairline:     #e6e3ee;
+  --gridline:     #e1e0d9;
+  --baseline:     #c3c2b7;
+
+  --up:           #e34948;   /* raises risk  */
+  --down:         #2a78d6;   /* lowers risk  */
+  --series-1:     #2a78d6;
+  --series-2:     #eb6834;
+  --good:         #0ca30c;
+  --warn:         #fab219;
+  --crit:         #d03b3b;
+
+  --radius:       14px;
+  --shadow:       0 1px 2px rgba(22,21,26,.05), 0 8px 24px rgba(87,65,137,.07);
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--brand-violet-ink); text-decoration-color: rgba(135,107,175,.35); text-underline-offset: 2px; }
+a:hover { text-decoration-color: currentColor; }
+
+h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.015em; margin: 0; }
+
+code {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: #f2effa;
+  color: #4a3f68;
+  padding: .12em .38em;
+  border-radius: 5px;
+}
+
+/* --------------------------- nav --------------------------- */
+.nav {
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(255,255,255,.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hairline);
+}
+.nav-inner {
+  max-width: 1120px; margin: 0 auto; padding: .55rem 1.25rem;
+  display: flex; align-items: center; gap: 1.25rem;
+}
+.nav-brand {
+  font-weight: 700; font-size: .95rem; white-space: nowrap;
+  background: linear-gradient(90deg, var(--brand-violet-ink), var(--brand-teal-ink));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.nav-links {
+  display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none;
+  margin-left: auto;
+}
+.nav-links::-webkit-scrollbar { display: none; }
+.nav-links a {
+  font-size: .85rem; font-weight: 500; color: var(--ink-2);
+  padding: .35rem .6rem; border-radius: 8px; text-decoration: none; white-space: nowrap;
+}
+.nav-links a:hover { background: #f2effa; color: var(--brand-violet-ink); }
+
+/* --------------------------- hero --------------------------- */
+.hero {
+  background: linear-gradient(115deg, #6f56a0 0%, var(--brand-violet) 38%, #4bb3c8 72%, var(--brand-teal) 100%);
+  color: #fff;
+  padding: 4.5rem 1.25rem 3.25rem;
+  text-align: center;
+}
+.hero-inner { max-width: 900px; margin: 0 auto; }
+.eyebrow {
+  display: inline-block;
+  font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  background: rgba(255,255,255,.16);
+  border: 1px solid rgba(255,255,255,.28);
+  padding: .3rem .8rem; border-radius: 999px; margin-bottom: 1.1rem;
+}
+.hero h1 { font-size: clamp(2.1rem, 5.4vw, 3.5rem); font-weight: 800; margin-bottom: .5rem; }
+.hero .sub { font-size: clamp(1rem, 2.2vw, 1.2rem); opacity: .95; max-width: 46rem; margin: 0 auto 1.1rem; }
+.hero .authors { font-size: .95rem; opacity: .88; margin-bottom: 1.9rem; }
+.cta-row { display: flex; flex-wrap: wrap; gap: .7rem; justify-content: center; }
+.btn {
+  display: inline-block; padding: .7rem 1.15rem; border-radius: 10px;
+  font-size: .95rem; font-weight: 600; text-decoration: none;
+  border: 1px solid rgba(255,255,255,.35); color: #fff;
+  background: rgba(255,255,255,.12); transition: background .18s, transform .18s;
+}
+.btn:hover { background: rgba(255,255,255,.24); transform: translateY(-1px); text-decoration: none; }
+.btn-solid { background: #fff; color: #5b4189; border-color: #fff; }
+.btn-solid:hover { background: #f4f0ff; color: #46316b; }
+
+/* ------------------------- stat strip ------------------------ */
+.stat-strip {
+  max-width: 1120px; margin: -2.25rem auto 0; padding: 0 1.25rem;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .9rem;
+}
+.stat {
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.05rem 1.15rem;
+  border-top: 3px solid var(--brand-teal);
+}
+.stat:nth-child(2) { border-top-color: var(--brand-violet); }
+.stat:nth-child(3) { border-top-color: var(--series-2); }
+.stat:nth-child(4) { border-top-color: var(--crit); }
+.stat .v { font-size: 1.85rem; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+.stat .l { font-size: .8rem; color: var(--ink-muted); margin-top: .2rem; }
+
+/* ------------------------- layout --------------------------- */
+main { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem 4rem; }
+section { padding-top: 3.75rem; }
+.sec-head { margin-bottom: 1.4rem; }
+.sec-tag {
+  display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--brand-teal-ink);
+  background: #e4f7f8; border-radius: 999px; padding: .25rem .7rem; margin-bottom: .6rem;
+}
+.sec-tag.v { color: var(--brand-violet-ink); background: #f0ebfa; }
+.sec-tag.o { color: #9a3f14; background: #fdefe7; }
+.sec-tag.r { color: #8f2020; background: #fdecec; }
+h2 { font-size: clamp(1.5rem, 3.2vw, 2rem); font-weight: 700; }
+.sec-head p { color: var(--ink-2); margin: .5rem 0 0; max-width: 58rem; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.5rem;
+}
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 1.1rem; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.1rem; }
+.top { align-items: start; }
+h3 { font-size: 1.12rem; font-weight: 700; margin-bottom: .5rem; }
+h4 { font-size: .95rem; font-weight: 700; margin-bottom: .35rem; }
+p { margin: 0 0 1rem; }
+p:last-child, ul:last-child, ol:last-child { margin-bottom: 0; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.25rem; }
+li { margin-bottom: .4rem; }
+.lead { font-size: 1.05rem; }
+
+.pull {
+  border-left: 4px solid var(--brand-teal); background: linear-gradient(90deg, #eefbfc, #ffffff 70%);
+  padding: 1rem 1.25rem; border-radius: 0 10px 10px 0; margin: 0 0 1.2rem;
+  font-size: 1.08rem; font-weight: 500; color: var(--ink);
+}
+.note {
+  border-left: 4px solid var(--warn); background: #fffaec;
+  padding: .9rem 1.1rem; border-radius: 0 10px 10px 0; font-size: .93rem; color: var(--ink-2);
+}
+.note strong { color: var(--ink); }
+.note.crit { border-left-color: var(--crit); background: #fdf0f0; }
+.note.good { border-left-color: var(--good); background: #f0faf0; }
+
+/* ------------------------- tables --------------------------- */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--hairline); }
+th { font-weight: 700; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 0; }
+
+/* ------------------------- charts --------------------------- */
+figure { margin: 0; }
+figcaption { font-size: .85rem; color: var(--ink-muted); margin-top: .7rem; }
+.fig-title { font-size: 1.02rem; font-weight: 700; margin-bottom: .15rem; }
+.fig-sub { font-size: .85rem; color: var(--ink-muted); margin-bottom: 1rem; }
+
+.chart { font-size: .85rem; }
+.row {
+  display: grid; grid-template-columns: minmax(90px, 150px) 1fr 62px;
+  align-items: center; gap: .6rem; margin-bottom: .55rem;
+}
+.row .name { color: var(--ink-2); font-weight: 500; }
+.row .name code { background: none; padding: 0; color: var(--ink); font-size: .85rem; }
+.row .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+
+/* diverging track: zero at centre */
+.track-div { position: relative; height: 18px; }
+.track-div::before {
+  content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px;
+  width: 1px; background: var(--baseline);
+}
+.bar { position: absolute; top: 2px; bottom: 2px; }
+.bar.pos { left: 50%; background: var(--up);   border-radius: 0 4px 4px 0; }
+.bar.neg { right: 50%; background: var(--down); border-radius: 4px 0 0 4px; }
+
+/* simple left-anchored track */
+.track { position: relative; height: 18px; background: linear-gradient(90deg, var(--gridline), var(--gridline)) left/1px 100% no-repeat; }
+.bar-l { position: absolute; left: 0; top: 2px; bottom: 2px; border-radius: 0 4px 4px 0; background: var(--series-1); }
+.bar-l.alt { background: var(--series-2); }
+
+.axis {
+  display: grid; grid-template-columns: minmax(90px, 150px) 1fr 62px; gap: .6rem;
+  font-size: .75rem; color: var(--ink-muted); margin-top: .1rem;
+}
+.axis-scale { display: flex; justify-content: space-between; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-bottom: 1rem; font-size: .82rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+details { margin-top: 1rem; border-top: 1px solid var(--hairline); padding-top: .7rem; }
+summary { cursor: pointer; font-size: .82rem; color: var(--ink-muted); font-weight: 600; }
+summary:hover { color: var(--brand-violet-ink); }
+details table { margin-top: .7rem; }
+
+.shot {
+  width: 100%; height: auto; display: block; border-radius: 10px;
+  border: 1px solid var(--hairline); background: #fff;
+}
+
+/* ------------------------- misc ----------------------------- */
+pre {
+  background: #1e1b2e; color: #eae6f7; border-radius: 10px; padding: 1rem 1.1rem;
+  overflow-x: auto; font-family: var(--mono); font-size: .82rem; line-height: 1.55; margin: 0 0 1rem;
+}
+pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+.k { color: #b39ddb; } .s { color: #8fd6a9; } .n { color: #f0b37e; } .c { color: #8b86a3; }
+
+.timeline { display: grid; gap: .9rem; }
+.step {
+  display: grid; grid-template-columns: 2.3rem 1fr; gap: 1rem; align-items: start;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.15rem 1.3rem;
+}
+.step .num {
+  width: 2.3rem; height: 2.3rem; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 700; font-size: .95rem; color: #fff;
+  background: linear-gradient(135deg, var(--brand-violet), var(--brand-teal));
+}
+.step p { font-size: .95rem; color: var(--ink-2); margin: 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip {
+  font-size: .78rem; font-weight: 600; padding: .25rem .6rem; border-radius: 999px;
+  background: #f2effa; color: var(--brand-violet-ink); border: 1px solid #e4dcf5;
+}
+.chip.t { background: #e4f7f8; color: var(--brand-teal-ink); border-color: #cdeef0; }
+
+.people { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+.person {
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 1.2rem; text-align: center;
+}
+.person .av {
+  width: 52px; height: 52px; border-radius: 50%; margin: 0 auto .7rem; display: grid; place-items: center;
+  color: #fff; font-weight: 700; font-size: 1.05rem;
+  background: linear-gradient(135deg, var(--brand-violet), var(--brand-teal));
+}
+.person .nm { font-weight: 700; font-size: 1rem; }
+.person .rl { font-size: .82rem; color: var(--ink-muted); }
+
+.refs { font-size: .88rem; color: var(--ink-2); }
+.refs ol { padding-left: 1.4rem; }
+.refs li { margin-bottom: .55rem; }
+.refs h4 { color: var(--brand-violet-ink); margin-top: 1.2rem; }
+.refs h4:first-child { margin-top: 0; }
+
+footer {
+  background: linear-gradient(115deg, #6f56a0, var(--brand-violet) 45%, var(--brand-teal));
+  color: #fff; padding: 2.5rem 1.25rem; text-align: center; font-size: .9rem;
+}
+footer a { color: #fff; text-decoration-color: rgba(255,255,255,.5); }
+footer .disc { opacity: .85; max-width: 46rem; margin: .8rem auto 0; font-size: .84rem; }
+
+@media (max-width: 620px) {
+  .row, .axis { grid-template-columns: minmax(78px, 1fr) 1.4fr 54px; gap: .45rem; font-size: .8rem; }
+  .hero { padding: 3rem 1.25rem 2.75rem; }
+  .nav-brand { display: none; }
+  .nav-links { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">AI4ALL Group 3D</span>
+    <div class="nav-links">
+      <a href="#overview">Overview</a>
+      <a href="#evolution">Evolution</a>
+      <a href="#data">Data</a>
+      <a href="#model">Model</a>
+      <a href="#results">Results</a>
+      <a href="#evaluation">Evaluation</a>
+      <a href="#limits">Limitations</a>
+      <a href="#impact">Impact &amp; Bias</a>
+      <a href="#next">Next Steps</a>
+      <a href="#citations">Citations</a>
+      <a href="#team">Team</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="eyebrow">AI4ALL Ignite · Group 3D</span>
+    <h1>Lower-Limb Risk Lab</h1>
+    <p class="sub">Can machine learning predict the likelihood of a lower-extremity injury on a single NFL play from how a player moves and what they are running on? We built a binary classifier over 266,960 player-plays to find out — and reported honestly on what it can and cannot do.</p>
+    <p class="authors">Hue Chau · Rohun Sarkar · Carlos Oviedo Ramos · Ayush Regmi</p>
+    <div class="cta-row">
+      <a class="btn btn-solid" href="https://ai4all-3d.streamlit.app/">▶ Live dashboard</a>
+      <a class="btn" href="https://github.com/ovikrai/AI4ALL-GROUP-3D">Code &amp; documentation</a>
+      <a class="btn" href="https://www.kaggle.com/competitions/nfl-playing-surface-analytics">Dataset</a>
+    </div>
+  </div>
+</header>
+
+<div class="stat-strip">
+  <div class="stat"><div class="v">266,960</div><div class="l">Player-plays modeled</div></div>
+  <div class="stat"><div class="v">0.604</div><div class="l">Holdout ROC-AUC</div></div>
+  <div class="stat"><div class="v">+1.09</div><div class="l">Max-speed coefficient — the dominant driver</div></div>
+  <div class="stat"><div class="v">12</div><div class="l">Injury events in the test set</div></div>
+</div>
+
+<main>
+
+<!-- =================== OVERVIEW =================== -->
+<section id="overview">
+  <div class="sec-head">
+    <span class="sec-tag v">Project overview</span>
+    <h2>A per-play injury risk signal — and an honest account of its limits</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <p class="pull">Can machine learning predict the likelihood of a lower-extremity injury during an NFL play using player movement, playing surface, weather, stadium conditions, player position, and other game-related variables?</p>
+      <p>Lower-extremity injuries decide players' availability, careers, and long-term health, and the people they affect bear all the downside of both a missed injury and an unnecessary benching. Injuries also cost NFL teams over $500 million in 2019 alone (Phillips).</p>
+      <p>The underlying dataset was assembled specifically to examine "the effects that playing on synthetic turf versus natural turf can have on player movements and the factors that may contribute to lower extremity injuries," so the surface question sits at the centre of the work.</p>
+      <p style="margin-bottom:0">We delivered the model as the <strong>Lower-Limb Risk Lab</strong>, a live Streamlit dashboard that runs the whole pipeline on cold start and presents a filterable risk board, a diagnostics tab, and a per-player explorer.</p>
+    </div>
+
+    <div class="card">
+      <h3>Who this is for</h3>
+      <ul>
+        <li><strong>Athletic trainers and team medical staff</strong> — the intended users of a risk board like this one.</li>
+        <li><strong>Players</strong> — availability, careers, and long-term health are what is at stake.</li>
+        <li><strong>Coaches and performance staff</strong> — workload management, rotation, and rest decisions.</li>
+        <li><strong>League officials and stadium operators</strong> — the synthetic-versus-natural-turf question feeds directly into field surface policy and groundskeeping investment.</li>
+        <li><strong>Team front offices</strong> — the financial cost of injuries.</li>
+      </ul>
+      <div class="note crit" style="margin-top:1rem">
+        <strong>Headline finding, stated up front.</strong> The strongest predictor is not the playing surface — it is how fast the player was moving. Synthetic turf ranked third, with a coefficient an order of magnitude smaller than maximum speed.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== EVOLUTION =================== -->
+<section id="evolution">
+  <div class="sec-head">
+    <span class="sec-tag">How the project evolved</span>
+    <h2>From an exploratory notebook to a deployed dashboard</h2>
+    <p>The project changed shape three times. Each change came from finding a problem with the previous version rather than from adding features — the most useful work we did was auditing our own pipeline.</p>
+  </div>
+
+  <div class="timeline">
+    <div class="step">
+      <div class="num">1</div>
+      <div>
+        <h4>Exploration — understanding a three-file, 4 GB dataset</h4>
+        <p>We profiled <code>InjuryRecord</code>, <code>PlayList</code>, and <code>PlayerTrackData</code>, verified their row counts and key structure, and mapped how a single <code>PlayKey</code> stitches all three together. This is where the turf, body-part, and severity distributions below came from, and where we learned that <code>Temperature</code> carries non-physical sentinel values for domes.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">2</div>
+      <div>
+        <h4>First model — and the first hard discovery</h4>
+        <p>A logistic-regression notebook produced the headline numbers. It also surfaced the finding that reframed the whole project: <strong>28 of the 105 injury records have a null <code>PlayKey</code></strong>. The game is known, but the specific play was never noted, so those injuries can never be labeled by a key match. Our ceiling on positive examples was 77, not 105 — before any modeling choice we made.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">3</div>
+      <div>
+        <h4>Auditing our own notebook, then rewriting it</h4>
+        <p>Reviewing the notebook, we found two real methodological defects: it called <code>scaler.fit_transform(X)</code> on the full dataset <em>before</em> splitting, leaking test-set distribution into training, and its split was not stratified, so how many injuries landed in the holdout was left to chance. It also divided speed differences by a fixed <code>0.1</code> s, assuming a 10 Hz interval that does not hold on our sampled file — producing accelerations up to 75.7 yd/s², roughly seven times what a human sprinter can generate. The rewrite, <code>src/injury_model.py</code>, fixes all three: the scaler moves inside a <code>Pipeline</code>, the split is stratified, and acceleration divides by actual elapsed time.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="num">4</div>
+      <div>
+        <h4>Delivery — the Lower-Limb Risk Lab</h4>
+        <p>We shipped a Streamlit dashboard that ships no pre-trained artifact: on cold start it loads the committed data, runs the entire feature-engineering and training pipeline, and caches the result. It presents a downloadable low-risk player board, a diagnostics tab (ROC-AUC, recall, precision, ROC curve, confusion matrix, standardized coefficients, risk histogram), and a player explorer with risk-by-player-day traces.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:1.1rem">
+    <strong>What we would flag to any reader of this page.</strong> The dashboard trains on a committed 1M-row sample of the 4 GB tracking file. Because that sample draws <em>rows</em> rather than <em>plays</em>, it keeps only ~3.9 timesteps of each play instead of the full 10 Hz trace — which collapses <code>dis_sum</code> roughly 70× and inflates <code>accel_max</code> roughly 4×. The direction of every effect survives, but treat the notebook figures on this page as the finding and the dashboard as the delivery layer. Fixing this is the first item in <a href="#next">Next Steps</a>.
+  </div>
+</section>
+
+<!-- =================== DATA =================== -->
+<section id="data">
+  <div class="sec-head">
+    <span class="sec-tag o">Data</span>
+    <h2>NFL Playing Surface Analytics — 250 players, two seasons</h2>
+    <p>The corpus is 250 complete player in-game histories from two subsequent NFL regular seasons, released by the National Football League for the Kaggle competition <em>NFL 1st and Future — Analytics</em>. Player movement is recorded by the Next Gen Stats (NGS) system at 10 Hz.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Three files, one join key</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File</th><th>Contents</th><th class="num">Rows</th></tr></thead>
+          <tbody>
+            <tr><td><code>InjuryRecord</code></td><td>Lower-limb injuries incurred, with body part, surface, and severity flags</td><td class="num">105</td></tr>
+            <tr><td><code>PlayList</code></td><td>Game, field, and play information at the player-play level</td><td class="num">267,005</td></tr>
+            <tr><td><code>PlayerTrack</code></td><td>Player position, speed, and orientation during a play, at 10 Hz</td><td class="num">~4 GB</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:1rem;font-size:.93rem;color:var(--ink-2)">All three join on identifiers with a nested structure — <code>PlayerKey</code> (an anonymized player id, e.g. <code>26624</code>), <code>GameID</code> (<code>{PlayerKey}-{game}</code>), and <code>PlayKey</code> (<code>{PlayerKey}-{game}-{play}</code>). Because <code>PlayKey</code> embeds the other two, a single column links tracking data to play metadata to injuries.</p>
+      <p style="margin-bottom:0;font-size:.93rem;color:var(--ink-2)"><code>PlayList</code> is verified at 267,005 rows, 250 distinct players, and 5,712 distinct games, with a surface split of 156,902 natural and 110,103 synthetic plays.</p>
+    </div>
+
+    <div class="card">
+      <figure>
+        <div class="fig-title">Where the injuries happened</div>
+        <div class="fig-sub">All 105 recorded lower-extremity injuries, by body part.</div>
+        <div class="chart">
+          <div class="row"><span class="name">Knee</span><span class="track"><span class="bar-l" style="width:100%"></span></span><span class="val">48</span></div>
+          <div class="row"><span class="name">Ankle</span><span class="track"><span class="bar-l" style="width:87.5%"></span></span><span class="val">42</span></div>
+          <div class="row"><span class="name">Foot</span><span class="track"><span class="bar-l" style="width:14.6%"></span></span><span class="val">7</span></div>
+          <div class="row"><span class="name">Toes</span><span class="track"><span class="bar-l" style="width:14.6%"></span></span><span class="val">7</span></div>
+          <div class="row"><span class="name">Heel</span><span class="track"><span class="bar-l" style="width:2.1%"></span></span><span class="val">1</span></div>
+          <div class="axis"><span></span><span class="axis-scale"><span>0</span><span>48 injuries</span></span><span></span></div>
+        </div>
+        <figcaption>Knee and ankle injuries account for 90 of 105 records. Severity nests exactly as expected across the cumulative <code>DM_M*</code> flags: 105 injuries cost at least one day, 76 at least seven, 37 at least 28, and 29 at least 42.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="grid-2 top" style="margin-top:1.1rem">
+    <div class="card">
+      <figure>
+        <div class="fig-title">Raw injury rate by playing surface</div>
+        <div class="fig-sub">Injuries per 10,000 plays across the full corpus — unadjusted for anything else.</div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--series-1)"></i> Synthetic</span>
+          <span><i class="swatch" style="background:var(--series-2)"></i> Natural</span>
+        </div>
+        <div class="chart">
+          <div class="row"><span class="name">Synthetic</span><span class="track"><span class="bar-l" style="width:100%"></span></span><span class="val">5.18</span></div>
+          <div class="row"><span class="name">Natural</span><span class="track"><span class="bar-l alt" style="width:59.1%"></span></span><span class="val">3.06</span></div>
+          <div class="axis"><span></span><span class="axis-scale"><span>0</span><span>5.2 per 10,000 plays</span></span><span></span></div>
+        </div>
+        <figcaption>57 injuries across 110,103 synthetic plays versus 48 across 156,902 natural plays — a raw rate roughly 1.7× higher on synthetic turf, in the direction the literature predicts. Read this as a marginal association only: the model gives the surface flag far less independent weight once movement is held constant, and turf choice correlates with climate, dome-versus-open-air, and team.</figcaption>
+        <details>
+          <summary>Table view</summary>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Surface</th><th class="num">Injuries</th><th class="num">Plays</th><th class="num">Per 10,000</th></tr></thead>
+              <tbody>
+                <tr><td>Synthetic</td><td class="num">57</td><td class="num">110,103</td><td class="num">5.18</td></tr>
+                <tr><td>Natural</td><td class="num">48</td><td class="num">156,902</td><td class="num">3.06</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </figure>
+    </div>
+
+    <div class="card">
+      <figure>
+        <div class="fig-title">Game-start temperature by stadium type</div>
+        <div class="fig-sub">From the exploratory data analysis notebook.</div>
+        <img class="shot" src="assets/temperature_by_stadium_type.png" alt="Distribution of game-start temperature readings split by stadium type, showing indoor venues clustered in a narrow controlled band and outdoor venues spread widely.">
+        <figcaption><code>Temperature</code> is recorded at game start and is unavailable or irrelevant for domes, where conditions are controlled, so it carries non-physical sentinel values. The notebook filters <code>Temperature &gt; 0</code> before plotting, which is why no readings at or below zero appear. The y-axis is the second lesson: <code>StadiumType</code> is free text, so "Outdoor", "Oudoor", "Outdoors", and "Outside" all appear as separate categories. Both problems are why we treated the environmental variables as unfinished work rather than folding them straight into the model.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="note crit" style="margin-top:1.1rem">
+    <strong>The sample is a sample of <em>rows</em>, not of <em>plays</em>.</strong> <code>PlayerTrackData.csv</code> is roughly 4 GB and cannot be committed, so a uniform random sample of 1,000,000 rows was committed in its place. Those rows spread across 253,768 distinct plays — about 3.9 timesteps per play, out of a full trace recorded at 10 Hz. <code>dis_sum</code> therefore sums about 4 of 100+ per-timestep distance increments, giving a mean of 0.52 yards per play where the full data gives 38.01. The fix is to sample whole plays: draw a subset of <code>PlayKey</code>s and keep all of their timesteps.
+  </div>
+</section>
+
+<!-- =================== MODEL =================== -->
+<section id="model">
+  <div class="sec-head">
+    <span class="sec-tag v">The algorithm</span>
+    <h2>Logistic regression, chosen for what it explains rather than what it scores</h2>
+    <p>A supervised binary classifier: it takes six numeric descriptors of a single player-play and returns a probability that a lower-extremity injury occurred on that play.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Model card</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><th style="width:32%">Type</th><td>Supervised binary classification — logistic regression with balanced class weights</td></tr>
+            <tr><th>Inputs</th><td>Six numeric features per player-play: <code>s_max</code>, <code>accel_max</code>, <code>accel_min</code>, <code>dis_sum</code>, <code>acwr</code>, <code>is_synthetic</code></td></tr>
+            <tr><th>Output</th><td>A probability in [0, 1] that the play produced a lower-extremity injury, thresholded to a 0/1 label and also used directly as a ranking score</td></tr>
+            <tr><th>Target</th><td><code>is_injured</code> — <code>1</code> if the play's <code>PlayKey</code> appears in <code>InjuryRecord.csv</code>, else <code>0</code>. One row per play.</td></tr>
+            <tr><th>Training data</th><td>266,960 player-plays, 80/20 split, <code>random_state=42</code></td></tr>
+            <tr><th>Class balance</th><td>~0.04% positive — extreme imbalance, handled with <code>class_weight="balanced"</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Why this model</h3>
+      <pre><code><span class="n">Pipeline</span>(steps=[
+    (<span class="s">"scale"</span>, <span class="n">StandardScaler</span>()),
+    (<span class="s">"classifier"</span>, <span class="n">LogisticRegression</span>(
+        class_weight=<span class="s">"balanced"</span>,
+        max_iter=<span class="n">1_000</span>,
+        random_state=<span class="n">42</span>)),
+])</code></pre>
+      <ul style="font-size:.95rem">
+        <li><strong>Logistic regression</strong> because it is interpretable — its coefficients read directly as "this feature pushes risk up or down," which matters more for a project about <em>which variables drive injury</em> than raw predictive power would.</li>
+        <li><strong><code>StandardScaler</code></strong> because the features live on wildly different scales: speed in single digits, distance in tens, <code>is_synthetic</code> in {0,1}. Standardizing is also what makes the coefficients comparable to one another.</li>
+        <li><strong><code>class_weight="balanced"</code></strong> because with ~0.04% positives an unweighted model would predict "no injury" every time and score 99.96% accuracy while being useless.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.1rem">
+    <h3>Six features — three of them engineered</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Feature</th><th>Derived from</th><th>Definition</th><th>Units</th><th>Why it is in the model</th></tr></thead>
+        <tbody>
+          <tr><td><code>s_max</code></td><td><code>PlayerTrack.s</code></td><td>Max speed reached during the play</td><td>yd/s</td><td>Peak sprint effort — the mechanism behind non-contact hamstring and knee injuries</td></tr>
+          <tr><td><code>accel_max</code></td><td><strong>engineered</strong></td><td>Largest positive change in speed per second</td><td>yd/s²</td><td>Explosive acceleration loads soft tissue</td></tr>
+          <tr><td><code>accel_min</code></td><td><strong>engineered</strong></td><td>Largest negative change in speed per second</td><td>yd/s²</td><td>Hard deceleration is a known injury mechanism</td></tr>
+          <tr><td><code>dis_sum</code></td><td><code>PlayerTrack.dis</code></td><td>Total distance covered during the play</td><td>yards</td><td>Per-play volume and fatigue proxy</td></tr>
+          <tr><td><code>acwr</code></td><td><strong>engineered</strong></td><td>Acute:chronic workload ratio</td><td>unitless</td><td>Standard sports-science injury-risk metric</td></tr>
+          <tr><td><code>is_synthetic</code></td><td><code>PlayList.FieldType</code></td><td><code>1</code> if <code>FieldType == "Synthetic"</code></td><td>0/1</td><td>The project's core environmental hypothesis</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid-2" style="margin-top:1.3rem">
+      <div>
+        <h4>Engineering acceleration</h4>
+        <p style="font-size:.93rem;color:var(--ink-2)">The raw data has speed but not acceleration, so speed is differenced over time within each play, using the <em>actual</em> elapsed time and grouping by <code>PlayKey</code> before differencing. The per-play max and min become <code>accel_max</code> and <code>accel_min</code>.</p>
+        <pre><code>elapsed = grouped_movement[<span class="s">"time"</span>].diff()
+speed_change = grouped_movement[<span class="s">"s"</span>].diff()
+movement[<span class="s">"accel"</span>] = (speed_change /
+    elapsed.where(elapsed &gt; <span class="n">0</span>)).fillna(<span class="n">0.0</span>)</code></pre>
+      </div>
+      <div>
+        <h4>Engineering the acute:chronic workload ratio</h4>
+        <p style="font-size:.93rem;color:var(--ink-2)">ACWR compares an athlete's short-term workload to their longer-term average. Qin et al. define it as the ratio of 1-week acute workload to 4-week chronic workload, which is why 7- and 28-unit windows are the right <em>lengths</em> — though here they are applied to observations rather than calendar days. Missing and infinite values are filled with <code>1.0</code>, a neutral ratio.</p>
+        <pre><code>daily_load[<span class="s">"acute"</span>]   = player_load.transform(
+    <span class="k">lambda</span> v: v.rolling(<span class="n">7</span>,  min_periods=<span class="n">1</span>).mean())
+daily_load[<span class="s">"chronic"</span>] = player_load.transform(
+    <span class="k">lambda</span> v: v.rolling(<span class="n">28</span>, min_periods=<span class="n">1</span>).mean())
+daily_load[<span class="s">"acwr"</span>] = daily_load[<span class="s">"acute"</span>] / daily_load[<span class="s">"chronic"</span>]</code></pre>
+      </div>
+    </div>
+
+    <h4 style="margin-top:1.2rem">How the three files become one table</h4>
+    <ul style="font-size:.93rem;color:var(--ink-2)">
+      <li><strong>Tracking → one row per play.</strong> Many timesteps collapse to four aggregates via <code>groupby</code>, yielding the ~266,960 plays behind the figures below.</li>
+      <li><strong>Metadata join is <code>inner</code> and <code>one_to_one</code>-validated.</strong> A play survives only if it appears in both the tracking data and <code>PlayList</code>; pandas raises if the merge would fan out.</li>
+      <li><strong>Injury join is a set-membership test, not a merge</strong> — <code>PlayKey.isin(injuries["PlayKey"].dropna())</code>, which is exactly why the 28 null-<code>PlayKey</code> injuries silently vanish.</li>
+      <li><strong>ACWR join is <code>many_to_one</code>.</strong> One <code>(PlayerKey, PlayerDay)</code> workload value is broadcast back onto every play that player ran that day.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- =================== RESULTS =================== -->
+<section id="results">
+  <div class="sec-head">
+    <span class="sec-tag r">Results</span>
+    <h2>Movement dominates. Turf matters less than the premise assumed.</h2>
+    <p>Because the features were standardized before fitting, the coefficients are directly comparable: each one is the change in log-odds of injury per one standard deviation of that feature.</p>
+  </div>
+
+  <div class="card">
+    <figure>
+      <div class="fig-title">Standardized logistic-regression coefficients</div>
+      <div class="fig-sub">Six features, ordered by absolute magnitude. Bars to the right raise predicted risk; bars to the left lower it.</div>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--up)"></i> Raises predicted risk</span>
+        <span><i class="swatch" style="background:var(--down)"></i> Lowers predicted risk</span>
+      </div>
+      <div class="chart">
+        <div class="row"><span class="name"><code>s_max</code></span><span class="track-div"><span class="bar pos" style="width:50%"></span></span><span class="val">+1.0922</span></div>
+        <div class="row"><span class="name"><code>dis_sum</code></span><span class="track-div"><span class="bar neg" style="width:30.5%"></span></span><span class="val">−0.6658</span></div>
+        <div class="row"><span class="name"><code>is_synthetic</code></span><span class="track-div"><span class="bar pos" style="width:5.5%"></span></span><span class="val">+0.1211</span></div>
+        <div class="row"><span class="name"><code>acwr</code></span><span class="track-div"><span class="bar neg" style="width:4.4%"></span></span><span class="val">−0.0963</span></div>
+        <div class="row"><span class="name"><code>accel_max</code></span><span class="track-div"><span class="bar neg" style="width:3.6%"></span></span><span class="val">−0.0793</span></div>
+        <div class="row"><span class="name"><code>accel_min</code></span><span class="track-div"><span class="bar pos" style="width:1.6%"></span></span><span class="val">+0.0358</span></div>
+        <div class="axis"><span></span><span class="axis-scale"><span>−1.09</span><span>0</span><span>+1.09</span></span><span></span></div>
+      </div>
+      <figcaption><code>s_max</code> is 1.6× the next largest coefficient and roughly 9× everything below the top two. Raw class means agree with its sign: injury plays averaged <strong>6.12</strong> max speed against <strong>4.85</strong> on non-injury plays.</figcaption>
+      <details>
+        <summary>Table view</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th class="num">Rank</th><th>Feature</th><th>Meaning</th><th class="num">Coefficient</th></tr></thead>
+            <tbody>
+              <tr><td class="num">1</td><td><code>s_max</code></td><td>Maximum speed</td><td class="num">+1.0922</td></tr>
+              <tr><td class="num">2</td><td><code>dis_sum</code></td><td>Distance traveled</td><td class="num">−0.6658</td></tr>
+              <tr><td class="num">3</td><td><code>is_synthetic</code></td><td>Synthetic field</td><td class="num">+0.1211</td></tr>
+              <tr><td class="num">4</td><td><code>acwr</code></td><td>Acute:chronic workload ratio</td><td class="num">−0.0963</td></tr>
+              <tr><td class="num">5</td><td><code>accel_max</code></td><td>Maximum acceleration</td><td class="num">−0.0793</td></tr>
+              <tr><td class="num">6</td><td><code>accel_min</code></td><td>Maximum deceleration</td><td class="num">+0.0358</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </figure>
+  </div>
+
+  <div class="grid-3" style="margin-top:1.1rem">
+    <div class="card">
+      <h3>Maximum speed dominates</h3>
+      <p style="font-size:.95rem;color:var(--ink-2);margin-bottom:0">At +1.09 standardized, peak speed carries the model. The direction is consistent with the sports-medicine mechanism for non-contact hamstring and knee injuries, and it is the one result the raw class means corroborate cleanly: 6.12 yd/s on injury plays versus 4.85 on the rest.</p>
+    </div>
+    <div class="card">
+      <h3>Synthetic turf came third — and small</h3>
+      <p style="font-size:.95rem;color:var(--ink-2);margin-bottom:0">Positive, in the direction McCormick et al. and Venishetty et al. predict, but at +0.12 an order of magnitude weaker than movement. The raw rate is higher on synthetic turf, yet the model attributes little independent weight to the surface once speed and distance are accounted for.</p>
+    </div>
+    <div class="card">
+      <h3>ACWR did essentially nothing</h3>
+      <p style="font-size:.95rem;color:var(--ink-2);margin-bottom:0">This contradicts the sports-science premise for including it. Mean ACWR on injury days was 1.008, and injured players' peak ACWR (1.797) was <em>lower</em> than uninjured players' (2.110). Qin et al. identify 0.8–1.3 as the low-risk band, so our mean injury-day value sits almost dead-centre inside it.</p>
+    </div>
+  </div>
+
+  <div class="note crit" style="margin-top:1.1rem">
+    <strong><code>dis_sum</code>'s negative coefficient is not a finding.</strong> At −0.67 it says longer plays are <em>less</em> risky once speed is held constant, but the raw means move the opposite direction — 42.74 yards on injury plays versus 38.01 on non-injury plays. A coefficient that flips sign against its own marginal correlation is a suppression effect from collinearity with <code>s_max</code>, not a robust result, and it should not be read as "longer plays are safer." We report it because hiding it would misrepresent the model, not because we believe it.
+  </div>
+</section>
+
+<!-- =================== EVALUATION =================== -->
+<section id="evaluation">
+  <div class="sec-head">
+    <span class="sec-tag r">Evaluation</span>
+    <h2>Weak performance, honestly reported</h2>
+    <p>The holdout is an 80/20 <code>train_test_split</code> stratified on the target, containing 53,392 plays and just <strong>12 injury examples</strong>. We report ROC-AUC, precision, recall, average precision, and a confusion matrix — deliberately <em>not</em> accuracy, which is meaningless under this imbalance. The scaler is fitted inside the pipeline, so it never sees the test set.</p>
+  </div>
+
+  <div class="stat-strip" style="margin:0 0 1.1rem;padding:0;max-width:none">
+    <div class="stat"><div class="v">0.6040</div><div class="l">ROC-AUC — the headline metric</div></div>
+    <div class="stat"><div class="v">0.58</div><div class="l">Recall, injury class</div></div>
+    <div class="stat"><div class="v">0.00</div><div class="l">Precision, injury class</div></div>
+    <div class="stat"><div class="v">0.0010</div><div class="l">Average precision (no-skill ≈ 0.00022)</div></div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <figure>
+        <div class="fig-title">ROC curve</div>
+        <div class="fig-sub">True-positive rate against false-positive rate.</div>
+        <img class="shot" src="assets/roc_curve.png" alt="Receiver operating characteristic curve for the holdout set, tracking above the diagonal in coarse steps, with an area under the curve of 0.60.">
+        <figcaption>AUC 0.604 means the model ranks a randomly chosen injury play above a randomly chosen healthy play about 60% of the time, versus 50% for a coin flip. The curve tracks above the diagonal in coarse steps because only 12 positives exist to trace it.</figcaption>
+      </figure>
+    </div>
+    <div class="card">
+      <figure>
+        <div class="fig-title">Confusion matrix</div>
+        <div class="fig-sub">Holdout predictions at the default threshold.</div>
+        <img class="shot" src="assets/confusion_matrix.png" alt="Confusion matrix of holdout predictions showing a very large number of healthy plays flagged as injury risk alongside seven of twelve true injuries caught.">
+        <figcaption>Class-0 recall of 0.67 across 53,380 negatives means roughly <strong>17,600 healthy plays were flagged as injury risk</strong> in order to catch <strong>7 of 12</strong> real injuries. This is the number that decides whether the model is usable — and it says it is not.</figcaption>
+      </figure>
+    </div>
+    <div class="card">
+      <figure>
+        <div class="fig-title">Precision–recall curve</div>
+        <div class="fig-sub">The honest view under 0.02% positives.</div>
+        <img class="shot" src="assets/precision_recall_curve.png" alt="Precision-recall curve for the holdout set sitting very close to the horizontal axis, with an average precision of 0.0010.">
+        <figcaption>Average precision of 0.0010 against a no-skill baseline of 12 / 53,392 ≈ 0.00022 — better than nothing, and nowhere near deployable as an alarm. Under this much imbalance the PR curve is far more informative than the ROC curve.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:1.1rem">
+    <div class="card">
+      <h3>How to read these numbers</h3>
+      <p style="font-size:.95rem;color:var(--ink-2)">Accuracy of 0.67 appears nowhere in our conclusions. A model that predicted "no injury" for every play would score 99.98% accuracy on this holdout and catch zero injuries, which is exactly why <code>class_weight="balanced"</code> is in the pipeline and why we grade the model on ranking quality and recall instead.</p>
+      <p style="font-size:.95rem;color:var(--ink-2);margin-bottom:0">Precision of 0.00 is a <em>consequence</em> of that balancing rather than a defect in it. Balancing buys recall at precision's expense deliberately, on the argument that a missed injury costs more than a false alarm — but at this false-positive volume the trade stops being worth it, which is a result in its own right.</p>
+    </div>
+    <div class="card">
+      <div class="note">
+        <strong>Caveat on the reported numbers.</strong> These metrics come from the modeling notebook, which scales before splitting and does not stratify. <code>src/injury_model.py</code> fixes both, so the headline AUC of 0.604 is mildly optimistic and reproducing it through <code>src/</code> will not give an identical number. We are reporting the number we actually got, with the flaw named, rather than the number we would prefer.
+      </div>
+      <div class="note crit" style="margin-top:.8rem">
+        <strong>Twelve positive events.</strong> Every headline metric here is estimated from twelve injuries. The confidence interval on AUC 0.604 comfortably includes 0.50 — that is, it includes "no better than chance."
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== LIMITATIONS =================== -->
+<section id="limits">
+  <div class="sec-head">
+    <span class="sec-tag o">Limitations</span>
+    <h2>What this model cannot do</h2>
+    <p>We consider this list part of the result, not an appendix to it.</p>
+  </div>
+
+  <div class="grid-3 top">
+    <div class="card">
+      <h4>27% of injuries are unlabelable</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">28 of 105 injury records have no <code>PlayKey</code>, capping usable positive examples at 77 regardless of method.</p>
+    </div>
+    <div class="card">
+      <h4>Half the research question was never modeled</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">Weather, temperature, stadium type, play type, and position are all absent from the feature set, leaving a movement model with one turf flag.</p>
+    </div>
+    <div class="card">
+      <h4><code>is_synthetic</code> conflates surface with venue</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">Turf choice correlates with climate, dome-versus-open-air, and team, so the +0.12 coefficient absorbs all of that and cannot be read as a causal turf effect.</p>
+    </div>
+    <div class="card">
+      <h4>ACWR rolls over observations, not days</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">It cannot be compared to the literature's 0.8–1.3 band. Missing values are filled with <code>1.0</code> — the exact value meaning "balanced load" — so players with too little history are silently labeled well-balanced, biasing the feature toward the null effect we found.</p>
+    </div>
+    <div class="card">
+      <h4>Severity was discarded</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">The <code>DM_M1</code>…<code>DM_M42</code> flags gave a clean ordinal scale that we collapsed to a binary, so a one-day knock and a six-week injury share a label.</p>
+    </div>
+    <div class="card">
+      <h4>No cross-validation, no group-aware split</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">Plays from the same player appear in both train and test, and a single <code>random_state</code> carries the entire result.</p>
+    </div>
+    <div class="card">
+      <h4>Movement features differentiate a derived signal</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">We difference the NGS-provided <code>s</code> although the dataset documentation recommends computing velocity from <code>x</code> and <code>y</code> first, compounding NGS estimation error into <code>s_max</code>, <code>accel_max</code>, and <code>accel_min</code>.</p>
+    </div>
+    <div class="card">
+      <h4>The dashboard leaderboard is partly in-sample</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0">It scores every play, including the 80% used for training, so player-level risk is optimistically biased rather than a holdout estimate.</p>
+    </div>
+    <div class="card">
+      <h4>Players are anonymized</h4>
+      <p style="font-size:.93rem;color:var(--ink-2);margin:0"><code>PlayerKey</code> carries no demographics, which rules out checking performance across age, race, experience, or contract status. Position is the only available stratification.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== IMPACT & BIAS =================== -->
+<section id="impact">
+  <div class="sec-head">
+    <span class="sec-tag v">Impact &amp; bias</span>
+    <h2>Who this helps, who it could hurt, and where bias enters</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card" style="border-top:3px solid var(--good)">
+      <h3>Positive impact — decision support with a human in the loop</h3>
+      <p>The value of a per-play risk signal is as a <strong>screening prompt for athletic trainers and team medical staff</strong>, not as a verdict. A risk board surfaces which player-days are worth a closer look; the trainer, who has the physical exam, the athlete's own report, and the clinical history, makes the call.</p>
+      <p>That framing is what makes even a weak model potentially useful. A tool that ranks players for follow-up can add value at AUC 0.60 in a way that an automated benching system never could, because a human filter sits between the score and the consequence. It also puts a quantitative vocabulary — sprint exposure, workload, surface — into a conversation that is otherwise driven by intuition.</p>
+      <p style="margin-bottom:0">At the population level, the surface question our dataset was built to answer feeds field-surface policy and groundskeeping decisions that protect every player in a stadium at once, not one athlete at a time.</p>
+    </div>
+
+    <div class="card" style="border-top:3px solid var(--crit)">
+      <h3>Negative impact — a false positive costs someone playing time</h3>
+      <p>Our own confusion matrix is the argument against deploying this model: roughly <strong>17,600 healthy plays flagged</strong> to catch 7 of 12 real injuries, at a precision of 0.00. If a score like that reaches a coach rather than a clinician, the cost lands on the player. Playing time drives statistics, statistics drive contracts, and contracts drive careers — so a false "high risk" label is not a neutral error, it is a material harm to a specific person who did nothing wrong.</p>
+      <p>The dashboard's low-risk leaderboard sharpens this. Naming <em>specific</em> players low-risk invites playing-time decisions from a model with 0.00 precision and a 12-event validation set, and the fact that it scores training plays too makes those rankings optimistic. The app's disclaimer is necessary but does not neutralize the framing, which is why we treat it as a limitation rather than a feature.</p>
+      <p style="margin-bottom:0">There is also a quieter harm in the other direction: a model with 0.58 recall misses 5 of 12 injuries. A tool that is trusted more than it deserves can make a missed injury <em>more</em> likely by lending false reassurance to a decision that would otherwise have been made cautiously.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.1rem">
+    <h3>How AI/ML can amplify or mitigate bias in this case study</h3>
+    <div class="grid-2">
+      <div>
+        <h4 style="color:#8f2020">Where it amplifies</h4>
+        <ul style="font-size:.95rem;color:var(--ink-2)">
+          <li><strong>The sample decides who the model serves.</strong> Two seasons, 250 anonymized players, and 105 injuries is a narrow slice of professional football. Positions, body types, playing styles, and career stages that are thinly represented get risk estimates fitted mostly to <em>other</em> people's data, and the model will be least reliable exactly where it has seen the least — while presenting every player's score in the same confident decimal format.</li>
+          <li><strong>Historical patterns are treated as physical truth.</strong> The model learns from injuries that were <em>recorded</em>. Reporting is itself uneven: a starter's knock is documented differently from a practice-squad player's, so the label reflects medical attention as much as injury.</li>
+          <li><strong>An imprecise score gets used precisely.</strong> A 0.00-precision output rendered as a leaderboard invites exactly the ranking behavior the numbers cannot support, and that error concentrates on whoever the model over-fires on.</li>
+          <li><strong>Scale.</strong> A biased trainer affects one roster; a biased model deployed league-wide applies the same skew everywhere at once, and it does so with the institutional authority that a number tends to carry.</li>
+        </ul>
+      </div>
+      <div>
+        <h4 style="color:var(--brand-teal-ink)">Where it mitigates</h4>
+        <ul style="font-size:.95rem;color:var(--ink-2)">
+          <li><strong>Interpretability makes the reasoning auditable.</strong> Because we chose logistic regression, the entire decision rule is six standardized coefficients that anyone can inspect. An opaque model with the same performance would hide the fact that <code>dis_sum</code>'s sign is a collinearity artifact — we could only catch that because the model shows its work.</li>
+          <li><strong>A consistent rule replaces an inconsistent one.</strong> Applied to the same movement data, the model returns the same score regardless of a player's name, contract, or reputation — a real improvement over judgment that is influenced by all three, provided the inputs themselves are measured evenly.</li>
+          <li><strong>Publishing the failure protects the next team.</strong> Reporting AUC 0.604, precision 0.00, and a 12-event validation set makes it harder for anyone to deploy this pipeline believing it is more than it is.</li>
+        </ul>
+        <div class="note" style="margin-top:.6rem">
+          <strong>The audit we could not run.</strong> Fairness testing requires knowing who the model performs worse for, and <code>PlayerKey</code> is fully anonymized — no age, race, experience, or contract status. Position is the only stratification available. Anonymization is the right call for a public dataset, but it means we can state that bias is <em>possible</em> here without being able to measure it, and no one should read our silence on subgroup performance as evidence of fairness.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== NEXT STEPS =================== -->
+<section id="next">
+  <div class="sec-head">
+    <span class="sec-tag">Next steps</span>
+    <h2>What we are doing next</h2>
+    <p>Two priorities, in order. Both address defects we identified ourselves and documented above, and both are prerequisites to any claim this model could eventually support.</p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card" style="border-top:3px solid var(--brand-teal)">
+      <h3>1. Resample by play, not by row</h3>
+      <p>The committed tracking sample draws 1,000,000 <em>rows</em>, which spreads across 253,768 plays at about 3.9 timesteps each. Every per-play aggregate the model depends on is computed over a fragment of the play: <code>dis_sum</code> collapses roughly 70× and <code>accel_max</code> inflates roughly 4× relative to the full data.</p>
+      <p style="margin-bottom:0">The fix is to draw a subset of <code>PlayKey</code>s and keep <em>all</em> timesteps for each — a smaller number of complete plays instead of a large number of play fragments. This makes the dashboard's absolute numbers trustworthy and closes the gap between the delivered artifact and the notebook figures on this page.</p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--brand-violet)">
+      <h3>2. Model the environmental half of the question</h3>
+      <p>Our research question named playing surface, weather, stadium conditions, player position, and game-related variables. The shipped model contains one binary turf flag and five movement features, so most of that question is still unanswered.</p>
+      <p style="margin-bottom:0">Adding weather, temperature, stadium type, play type, and position would also loosen the confound that currently makes <code>is_synthetic</code> uninterpretable: with dome status and climate in the model, the turf coefficient stops absorbing them, and the surface question the dataset was built for finally becomes answerable rather than merely raised.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== CITATIONS =================== -->
+<section id="citations">
+  <div class="sec-head">
+    <span class="sec-tag o">Citations &amp; documentation</span>
+    <h2>Sources</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card refs">
+      <h4>Domain literature</h4>
+      <ol>
+        <li>Phillips, Gary. "Injuries Cost NFL Teams Over $500 Million in 2019." <em>Forbes</em>, 5 Feb. 2020, <a href="https://www.forbes.com/sites/garyphillips/2020/02/05/injuries-cost-nfl-teams-over-500-million-in-2019-football-concussions/">forbes.com</a>.</li>
+        <li>McCormick, et al. "Field Surface Type and Season-Ending Lower Extremity Injury in NFL Players." <em>Translational Sports Medicine</em>, 2024, <a href="https://onlinelibrary.wiley.com/doi/full/10.1155/2024/6832213">onlinelibrary.wiley.com</a>.</li>
+        <li>Venishetty, Nikit, et al. "Lower Extremity Injury Rates on Artificial Turf Versus Natural Grass Surfaces in the National Football League During the 2021 and 2022 Seasons." <em>PMC</em>, 2024, <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11363235/">pmc.ncbi.nlm.nih.gov</a>.</li>
+        <li>Leckey, Christopher, et al. "Machine Learning Approaches to Injury Risk Prediction in Sport: A Scoping Review with Evidence Synthesis." <em>British Journal of Sports Medicine</em>, vol. 59, no. 7, 2025, pp. 491–500, <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12013557/">pmc.ncbi.nlm.nih.gov</a>.</li>
+        <li>Qin, Wenlong, Rong Li, and Liang Chen. "Acute to Chronic Workload Ratio (ACWR) for Predicting Sports Injury Risk: A Systematic Review and Meta-Analysis." <em>BMC Sports Science, Medicine and Rehabilitation</em>, vol. 17, 2025, article 285, doi:10.1186/s13102-025-01332-x, <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12487117/">pmc.ncbi.nlm.nih.gov</a>.</li>
+      </ol>
+      <h4>Methods</h4>
+      <ol start="6">
+        <li>Fisher, R. A. "The Use of Multiple Measurements in Taxonomic Problems." <em>Annals of Eugenics</em>, vol. 7, no. 2, 1936, pp. 179–188.</li>
+        <li>Quinlan, J. R. "Induction of Decision Trees." <em>Machine Learning</em>, vol. 1, no. 1, 1986, pp. 81–106.</li>
+        <li>Breiman, Leo. "Random Forests." <em>Machine Learning</em>, vol. 45, no. 1, 2001, pp. 5–32.</li>
+      </ol>
+    </div>
+
+    <div class="card refs">
+      <h4>Data source</h4>
+      <ol start="9">
+        <li>National Football League / NFL Data Science. <em>NFL 1st and Future — Analytics (NFL Playing Surface Analytics)</em>. Kaggle, <a href="https://www.kaggle.com/competitions/nfl-playing-surface-analytics">kaggle.com/competitions/nfl-playing-surface-analytics</a>. All field definitions, units, coordinate-system details, and the notes on <code>PlayerDay</code> ordering and orientation reliability are from this dataset's official <em>Dataset Description</em> page.</li>
+      </ol>
+      <h4>Software</h4>
+      <ol start="10">
+        <li>Pedregosa, F., et al. "Scikit-learn: Machine Learning in Python." <em>Journal of Machine Learning Research</em>, vol. 12, 2011, pp. 2825–2830.</li>
+        <li>The pandas development team. <em>pandas-dev/pandas: pandas</em>. Zenodo, <a href="https://doi.org/10.5281/zenodo.3509134">doi.org/10.5281/zenodo.3509134</a>.</li>
+        <li>Streamlit Inc. <em>Streamlit — A faster way to build and share data apps</em>. <a href="https://streamlit.io">streamlit.io</a>.</li>
+      </ol>
+
+      <h4>Technologies used</h4>
+      <div class="chips" style="margin-bottom:.9rem">
+        <span class="chip">Python 3.10</span>
+        <span class="chip">pandas</span>
+        <span class="chip">numpy</span>
+        <span class="chip">polars</span>
+        <span class="chip t">scikit-learn</span>
+        <span class="chip t">StandardScaler</span>
+        <span class="chip t">LogisticRegression</span>
+        <span class="chip">matplotlib</span>
+        <span class="chip">seaborn</span>
+        <span class="chip t">Streamlit</span>
+        <span class="chip">pytest</span>
+        <span class="chip">ruff</span>
+        <span class="chip">mypy</span>
+      </div>
+      <p style="font-size:.9rem;color:var(--ink-2);margin-bottom:0">Code, notebooks, committed data, profiling reports, and the full write-up live in the project repository: <a href="https://github.com/ovikrai/AI4ALL-GROUP-3D"><strong>github.com/ovikrai/AI4ALL-GROUP-3D</strong></a>. The dashboard runs at <a href="https://ai4all-3d.streamlit.app/">ai4all-3d.streamlit.app</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- =================== TEAM =================== -->
+<section id="team">
+  <div class="sec-head">
+    <span class="sec-tag v">Team</span>
+    <h2>AI4ALL Ignite — Group 3D</h2>
+  </div>
+  <div class="people">
+    <div class="person"><div class="av">HC</div><div class="nm">Hue Chau</div><div class="rl">AI4ALL Ignite Fellow</div></div>
+    <div class="person"><div class="av">RS</div><div class="nm">Rohun Sarkar</div><div class="rl">AI4ALL Ignite Fellow</div></div>
+    <div class="person"><div class="av">CO</div><div class="nm">Carlos Oviedo Ramos</div><div class="rl">AI4ALL Ignite Fellow</div></div>
+    <div class="person"><div class="av">AR</div><div class="nm">Ayush Regmi</div><div class="rl">AI4ALL Ignite Fellow</div></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p style="margin:0;font-weight:600">Lower-Limb Risk Lab · AI4ALL Ignite Group 3D</p>
+  <p style="margin:.4rem 0 0"><a href="https://ai4all-3d.streamlit.app/">Live dashboard</a> · <a href="https://github.com/ovikrai/AI4ALL-GROUP-3D">Project repository</a> · <a href="https://www.kaggle.com/competitions/nfl-playing-surface-analytics">Dataset</a> · MIT License</p>
+  <p class="disc">Decision-support prototype, not medical advice — scores are relative model outputs from an anonymized competition dataset and are not calibrated clinical probabilities.</p>
+</footer>
+
+</body>
+</html>
